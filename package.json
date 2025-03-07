@@ -2,7 +2,7 @@
   "name": "agentda",
   "version": "0.1.0",
   "description": "AI-powered meeting planning and agenda collaboration",
-  "main": "index.js",
+  "main": "index.html",
   "scripts": {
     "dev": "serve .",
     "build": "echo 'No build step required for static site'"
