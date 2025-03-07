@@ -1,0 +1,23 @@
+{
+  "name": "agentda",
+  "version": "0.1.0",
+  "description": "AI-powered meeting planning and agenda collaboration",
+  "main": "index.js",
+  "scripts": {
+    "dev": "serve .",
+    "build": "echo 'No build step required for static site'"
+  },
+  "keywords": [
+    "meetings",
+    "scheduling",
+    "agenda",
+    "ai",
+    "collaboration"
+  ],
+  "author": "Agentda",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "serve": "^14.0.0"
+  }
+}
