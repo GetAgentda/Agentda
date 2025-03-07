@@ -1,0 +1,934 @@
+<!-- scheduling.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agentda - Schedule Time Slots</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* Additional Styles for Scheduling Page */
+    .date-picker {
+      display: flex;
+      gap: var(--space-2);
+      overflow-x: auto;
+      padding-bottom: var(--space-2);
+      margin-bottom: var(--space-4);
+      scrollbar-width: thin;
+    }
+    
+    .date-picker::-webkit-scrollbar {
+      height: 6px;
+    }
+    
+    .date-picker::-webkit-scrollbar-track {
+      background: var(--neutral-100);
+      border-radius: var(--radius-full);
+    }
+    
+    .date-picker::-webkit-scrollbar-thumb {
+      background-color: var(--neutral-300);
+      border-radius: var(--radius-full);
+    }
+    
+    .date-option {
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 80px;
+      padding: var(--space-2);
+      border: 1px solid var(--neutral-200);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+    
+    .date-option:hover {
+      border-color: var(--accent-teal);
+      background-color: color-mix(in srgb, var(--accent-teal), transparent 95%);
+    }
+    
+    .date-option.selected {
+      background-color: var(--accent-teal);
+      color: var(--white);
+      border-color: var(--accent-teal);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+    
+    .date-option.unavailable {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .date-weekday {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      margin-bottom: var(--space-1);
+    }
+    
+    .date-day {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: var(--space-1);
+    }
+    
+    .date-month {
+      font-size: 0.75rem;
+    }
+    
+    .time-slots-container {
+      margin-top: var(--space-4);
+    }
+    
+    .time-slots-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-4);
+    }
+    
+    .time-zone-selector {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: 0.875rem;
+    }
+    
+    .time-zone-display {
+      font-weight: 500;
+    }
+    
+    .time-slots-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: var(--space-3);
+    }
+    
+    .time-slot {
+      padding: var(--space-3);
+      border: 1px solid var(--neutral-200);
+      border-radius: var(--radius-md);
+      text-align: center;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+    
+    .time-slot:hover {
+      border-color: var(--accent-teal);
+      background-color: color-mix(in srgb, var(--accent-teal), transparent 95%);
+    }
+    
+    .time-slot.selected {
+      background-color: var(--accent-teal);
+      color: var(--white);
+      border-color: var(--accent-teal);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-sm);
+    }
+    
+    .time-slot.unavailable {
+      background-color: var(--neutral-100);
+      color: var(--neutral-400);
+      cursor: not-allowed;
+      position: relative;
+    }
+    
+    .time-slot.unavailable::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 100%;
+      height: 1px;
+      background-color: var(--neutral-300);
+      transform: rotate(-10deg);
+    }
+    
+    .time-slot-time {
+      font-weight: 600;
+      font-size: 1rem;
+      margin-bottom: var(--space-1);
+    }
+    
+    .time-slot-available {
+      font-size: 0.75rem;
+      color: var(--neutral-500);
+    }
+    
+    .time-slot.selected .time-slot-available {
+      color: color-mix(in srgb, var(--white), transparent 20%);
+    }
+    
+    .scheduling-actions {
+      display: flex;
+      justify-content: space-between;
+      margin-top: var(--space-6);
+    }
+
+    .scheduling-summary {
+      background-color: var(--neutral-50);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      margin-top: var(--space-4);
+    }
+    
+    .summary-header {
+      font-weight: 600;
+      margin-bottom: var(--space-3);
+      color: var(--neutral-700);
+    }
+    
+    .summary-detail {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-3);
+      margin-bottom: var(--space-3);
+    }
+    
+    .summary-icon {
+      color: var(--accent-teal);
+      margin-top: 3px;
+    }
+    
+    .summary-content {
+      flex: 1;
+    }
+    
+    .summary-label {
+      font-size: 0.75rem;
+      color: var(--neutral-500);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: var(--space-1);
+    }
+    
+    .summary-value {
+      font-weight: 500;
+    }
+    
+    /* Calendar View Toggle */
+    .view-toggle {
+      display: flex;
+      gap: var(--space-2);
+      margin-bottom: var(--space-4);
+    }
+    
+    .view-option {
+      padding: var(--space-2) var(--space-4);
+      border: 1px solid var(--neutral-200);
+      border-radius: var(--radius-md);
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+    
+    .view-option.active {
+      background-color: var(--accent-teal);
+      color: var(--white);
+      border-color: var(--accent-teal);
+    }
+    
+    /* Calendar Grid View */
+    .calendar-view {
+      margin-top: var(--space-4);
+    }
+    
+    .calendar-grid {
+      display: none;
+      /* Shown when calendar view is active */
+    }
+    
+    .calendar-grid.active {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: var(--space-1);
+    }
+    
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-3);
+    }
+    
+    .calendar-month {
+      font-weight: 600;
+      font-size: 1.25rem;
+    }
+    
+    .calendar-nav {
+      display: flex;
+      gap: var(--space-2);
+    }
+    
+    .calendar-nav-btn {
+      width: 2rem;
+      height: 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--neutral-200);
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+    
+    .calendar-nav-btn:hover {
+      background-color: var(--neutral-100);
+    }
+    
+    .calendar-weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      text-align: center;
+      font-weight: 500;
+      font-size: 0.75rem;
+      color: var(--neutral-600);
+      margin-bottom: var(--space-2);
+    }
+    
+    .calendar-day {
+      aspect-ratio: 1/1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.875rem;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      position: relative;
+    }
+    
+    .calendar-day:hover {
+      background-color: var(--neutral-100);
+    }
+    
+    .calendar-day.selected {
+      background-color: var(--accent-teal);
+      color: var(--white);
+    }
+    
+    .calendar-day.today {
+      font-weight: 700;
+    }
+    
+    .calendar-day.different-month {
+      color: var(--neutral-400);
+    }
+    
+    .calendar-day.has-availability::after {
+      content: '';
+      position: absolute;
+      bottom: 4px;
+      width: 4px;
+      height: 4px;
+      background-color: var(--success);
+      border-radius: var(--radius-full);
+    }
+    
+    /* Responsiveness */
+    @media (max-width: 768px) {
+      .time-slots-grid {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      }
+      
+      .scheduling-actions {
+        flex-direction: column-reverse;
+        gap: var(--space-3);
+      }
+      
+      .scheduling-actions button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="navbar">
+    <div class="container">
+      <a href="#" class="navbar-brand">
+        <img src="logo.svg" alt="Agentda" height="32">
+      </a>
+      <nav class="navbar-nav">
+        <a href="#" class="nav-link active">Schedule</a>
+        <a href="#" class="nav-link">Meetings</a>
+        <a href="#" class="nav-link">Team</a>
+        <a href="#" class="nav-link">Integrations</a>
+        <div class="avatar avatar-md ml-4">JD</div>
+      </nav>
+      <button class="mobile-menu-toggle">
+        <i class="fas fa-bars"></i>
+      </button>
+    </div>
+  </header>
+
+  <main class="container py-6">
+    <div class="section">
+      <div class="flex items-center justify-between mb-6">
+        <h1>Schedule: Product Team Check-in</h1>
+        <div class="badge badge-primary">
+          <i class="fas fa-clock"></i>
+          30 min
+        </div>
+      </div>
+
+      <div class="card shadow-md">
+        <!-- Progress Steps -->
+        <div class="progress-steps mb-6">
+          <div class="progress-step completed">
+            <div class="progress-indicator"></div>
+            <div class="progress-label">Details</div>
+          </div>
+          <div class="progress-line"></div>
+          <div class="progress-step active">
+            <div class="progress-indicator">2</div>
+            <div class="progress-label">Scheduling</div>
+          </div>
+          <div class="progress-line"></div>
+          <div class="progress-step">
+            <div class="progress-indicator">3</div>
+            <div class="progress-label">Agenda</div>
+          </div>
+          <div class="progress-line"></div>
+          <div class="progress-step">
+            <div class="progress-indicator">4</div>
+            <div class="progress-label">Review</div>
+          </div>
+        </div>
+
+        <!-- View Toggle -->
+        <div class="view-toggle">
+          <div class="view-option active">
+            <i class="fas fa-list"></i>
+            List View
+          </div>
+          <div class="view-option">
+            <i class="fas fa-calendar"></i>
+            Calendar View
+          </div>
+        </div>
+
+        <!-- Date Picker -->
+        <div class="date-picker">
+          <div class="date-option unavailable">
+            <div class="date-weekday">Mon</div>
+            <div class="date-day">11</div>
+            <div class="date-month">Mar</div>
+          </div>
+          <div class="date-option">
+            <div class="date-weekday">Tue</div>
+            <div class="date-day">12</div>
+            <div class="date-month">Mar</div>
+          </div>
+          <div class="date-option selected">
+            <div class="date-weekday">Wed</div>
+            <div class="date-day">13</div>
+            <div class="date-month">Mar</div>
+          </div>
+          <div class="date-option">
+            <div class="date-weekday">Thu</div>
+            <div class="date-day">14</div>
+            <div class="date-month">Mar</div>
+          </div>
+          <div class="date-option">
+            <div class="date-weekday">Fri</div>
+            <div class="date-day">15</div>
+            <div class="date-month">Mar</div>
+          </div>
+          <div class="date-option unavailable">
+            <div class="date-weekday">Sat</div>
+            <div class="date-day">16</div>
+            <div class="date-month">Mar</div>
+          </div>
+          <div class="date-option unavailable">
+            <div class="date-weekday">Sun</div>
+            <div class="date-day">17</div>
+            <div class="date-month">Mar</div>
+          </div>
+          <div class="date-option">
+            <div class="date-weekday">Mon</div>
+            <div class="date-day">18</div>
+            <div class="date-month">Mar</div>
+          </div>
+          <div class="date-option">
+            <div class="date-weekday">Tue</div>
+            <div class="date-day">19</div>
+            <div class="date-month">Mar</div>
+          </div>
+          <div class="date-option">
+            <div class="date-weekday">Wed</div>
+            <div class="date-day">20</div>
+            <div class="date-month">Mar</div>
+          </div>
+        </div>
+
+        <!-- Calendar View -->
+        <div class="calendar-view">
+          <div class="calendar-header">
+            <div class="calendar-month">March 2025</div>
+            <div class="calendar-nav">
+              <div class="calendar-nav-btn">
+                <i class="fas fa-chevron-left"></i>
+              </div>
+              <div class="calendar-nav-btn">
+                <i class="fas fa-chevron-right"></i>
+              </div>
+            </div>
+          </div>
+          
+          <div class="calendar-weekdays">
+            <div>Mon</div>
+            <div>Tue</div>
+            <div>Wed</div>
+            <div>Thu</div>
+            <div>Fri</div>
+            <div>Sat</div>
+            <div>Sun</div>
+          </div>
+          
+          <div class="calendar-grid">
+            <!-- Calendar days would be generated by JavaScript -->
+            <!-- This is just a static representation -->
+            <div class="calendar-day different-month">25</div>
+            <div class="calendar-day different-month">26</div>
+            <div class="calendar-day different-month">27</div>
+            <div class="calendar-day different-month">28</div>
+            <div class="calendar-day">1</div>
+            <div class="calendar-day">2</div>
+            <div class="calendar-day">3</div>
+            <div class="calendar-day">4</div>
+            <div class="calendar-day">5</div>
+            <div class="calendar-day">6</div>
+            <div class="calendar-day">7</div>
+            <div class="calendar-day">8</div>
+            <div class="calendar-day">9</div>
+            <div class="calendar-day">10</div>
+            <div class="calendar-day">11</div>
+            <div class="calendar-day has-availability">12</div>
+            <div class="calendar-day selected has-availability">13</div>
+            <div class="calendar-day has-availability">14</div>
+            <div class="calendar-day has-availability">15</div>
+            <div class="calendar-day">16</div>
+            <div class="calendar-day">17</div>
+            <div class="calendar-day has-availability">18</div>
+            <div class="calendar-day has-availability">19</div>
+            <div class="calendar-day has-availability">20</div>
+            <div class="calendar-day has-availability">21</div>
+            <div class="calendar-day today has-availability">22</div>
+            <div class="calendar-day">23</div>
+            <div class="calendar-day">24</div>
+            <div class="calendar-day has-availability">25</div>
+            <div class="calendar-day has-availability">26</div>
+            <div class="calendar-day has-availability">27</div>
+            <div class="calendar-day has-availability">28</div>
+            <div class="calendar-day">29</div>
+            <div class="calendar-day">30</div>
+            <div class="calendar-day">31</div>
+            <div class="calendar-day different-month">1</div>
+            <div class="calendar-day different-month">2</div>
+            <div class="calendar-day different-month">3</div>
+            <div class="calendar-day different-month">4</div>
+          </div>
+        </div>
+
+        <!-- Time Slots -->
+        <div class="time-slots-container">
+          <div class="time-slots-header">
+            <h3>Available Times</h3>
+            <div class="time-zone-selector">
+              <span>Time Zone:</span>
+              <span class="time-zone-display">Eastern Time (ET)</span>
+              <button class="btn btn-ghost btn-sm">
+                <i class="fas fa-pencil"></i>
+                Change
+              </button>
+            </div>
+          </div>
+          
+          <div class="time-slots-grid">
+            <div class="time-slot unavailable">
+              <div class="time-slot-time">9:00 AM</div>
+              <div class="time-slot-available">Unavailable</div>
+            </div>
+            <div class="time-slot">
+              <div class="time-slot-time">9:30 AM</div>
+              <div class="time-slot-available">Available</div>
+            </div>
+            <div class="time-slot">
+              <div class="time-slot-time">10:00 AM</div>
+              <div class="time-slot-available">Available</div>
+            </div>
+            <div class="time-slot selected">
+              <div class="time-slot-time">10:30 AM</div>
+              <div class="time-slot-available">Selected</div>
+            </div>
+            <div class="time-slot">
+              <div class="time-slot-time">11:00 AM</div>
+              <div class="time-slot-available">Available</div>
+            </div>
+            <div class="time-slot">
+              <div class="time-slot-time">11:30 AM</div>
+              <div class="time-slot-available">Available</div>
+            </div>
+            <div class="time-slot unavailable">
+              <div class="time-slot-time">12:00 PM</div>
+              <div class="time-slot-available">Unavailable</div>
+            </div>
+            <div class="time-slot unavailable">
+              <div class="time-slot-time">12:30 PM</div>
+              <div class="time-slot-available">Unavailable</div>
+            </div>
+            <div class="time-slot">
+              <div class="time-slot-time">1:00 PM</div>
+              <div class="time-slot-available">Available</div>
+            </div>
+            <div class="time-slot">
+              <div class="time-slot-time">1:30 PM</div>
+              <div class="time-slot-available">Available</div>
+            </div>
+            <div class="time-slot">
+              <div class="time-slot-time">2:00 PM</div>
+              <div class="time-slot-available">Available</div>
+            </div>
+            <div class="time-slot">
+              <div class="time-slot-time">2:30 PM</div>
+              <div class="time-slot-available">Available</div>
+            </div>
+            <div class="time-slot">
+              <div class="time-slot-time">3:00 PM</div>
+              <div class="time-slot-available">Available</div>
+            </div>
+            <div class="time-slot">
+              <div class="time-slot-time">3:30 PM</div>
+              <div class="time-slot-available">Available</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scheduling Summary -->
+        <div class="scheduling-summary fade-in">
+          <div class="summary-header">Meeting Summary</div>
+          
+          <div class="summary-detail">
+            <div class="summary-icon">
+              <i class="fas fa-calendar-alt"></i>
+            </div>
+            <div class="summary-content">
+              <div class="summary-label">Date</div>
+              <div class="summary-value">Wednesday, March 13, 2025</div>
+            </div>
+          </div>
+          
+          <div class="summary-detail">
+            <div class="summary-icon">
+              <i class="fas fa-clock"></i>
+            </div>
+            <div class="summary-content">
+              <div class="summary-label">Time</div>
+              <div class="summary-value">10:30 AM - 11:00 AM (Eastern Time)</div>
+            </div>
+          </div>
+          
+          <div class="summary-detail">
+            <div class="summary-icon">
+              <i class="fas fa-users"></i>
+            </div>
+            <div class="summary-content">
+              <div class="summary-label">Participants</div>
+              <div class="summary-value">You and 4 others</div>
+            </div>
+          </div>
+          
+          <div class="summary-detail">
+            <div class="summary-icon">
+              <i class="fas fa-video"></i>
+            </div>
+            <div class="summary-content">
+              <div class="summary-label">Location</div>
+              <div class="summary-value">Zoom Video Call</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="scheduling-actions">
+          <button class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i>
+            Back to Details
+          </button>
+          <button class="btn btn-primary">
+            Continue to Agenda
+            <i class="fas fa-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-logo">
+          <img src="logo.svg" alt="Agentda" height="24">
+          <p class="text-sm mt-2">Schedule with purpose</p>
+        </div>
+        <div class="footer-links">
+          <div class="footer-link-group">
+            <h6>Product</h6>
+            <a href="#">Features</a>
+            <a href="#">Pricing</a>
+            <a href="#">Integrations</a>
+          </div>
+          <div class="footer-link-group">
+            <h6>Resources</h6>
+            <a href="#">Documentation</a>
+            <a href="#">Blog</a>
+            <a href="#">Support</a>
+          </div>
+          <div class="footer-link-group">
+            <h6>Company</h6>
+            <a href="#">About</a>
+            <a href="#">Careers</a>
+            <a href="#">Contact</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2025 Agentda Inc. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Mobile Navigation -->
+  <nav class="mobile-nav">
+    <div class="mobile-nav-items">
+      <a href="#" class="mobile-nav-item active">
+        <i class="fas fa-calendar mobile-nav-icon"></i>
+        <span>Schedule</span>
+      </a>
+      <a href="#" class="mobile-nav-item">
+        <i class="fas fa-list-check mobile-nav-icon"></i>
+        <span>Meetings</span>
+      </a>
+      <a href="#" class="mobile-nav-item">
+        <i class="fas fa-users mobile-nav-icon"></i>
+        <span>Team</span>
+      </a>
+      <a href="#" class="mobile-nav-item">
+        <i class="fas fa-gear mobile-nav-icon"></i>
+        <span>Settings</span>
+      </a>
+    </div>
+  </nav>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // View toggle: List vs Calendar
+      const viewOptions = document.querySelectorAll('.view-option');
+      const calendarGrid = document.querySelector('.calendar-grid');
+      const timeSlots = document.querySelector('.time-slots-container');
+      const datePicker = document.querySelector('.date-picker');
+      
+      viewOptions.forEach(option => {
+        option.addEventListener('click', function() {
+          viewOptions.forEach(opt => opt.classList.remove('active'));
+          this.classList.add('active');
+          
+          if (this.textContent.includes('Calendar')) {
+            calendarGrid.classList.add('active');
+            timeSlots.style.display = 'none';
+            datePicker.style.display = 'none';
+          } else {
+            calendarGrid.classList.remove('active');
+            timeSlots.style.display = 'block';
+            datePicker.style.display = 'flex';
+          }
+        });
+      });
+      
+      // Date selection in the date picker
+      const dateOptions = document.querySelectorAll('.date-option:not(.unavailable)');
+      
+      dateOptions.forEach(option => {
+        option.addEventListener('click', function() {
+          dateOptions.forEach(opt => opt.classList.remove('selected'));
+          this.classList.add('selected');
+          
+          // This would typically trigger an API call to get available time slots
+          // Simulate loading state
+          simulateLoadingTimeSlots();
+        });
+      });
+      
+      // Time slot selection
+      const timeSlotElements = document.querySelectorAll('.time-slot:not(.unavailable)');
+      
+      timeSlotElements.forEach(slot => {
+        slot.addEventListener('click', function() {
+          timeSlotElements.forEach(s => s.classList.remove('selected'));
+          this.classList.add('selected');
+          
+          // Update summary
+          const timeValue = this.querySelector('.time-slot-time').textContent;
+          const summaryTimeValue = document.querySelector('.summary-detail:nth-child(2) .summary-value');
+          
+          // Calculate end time (30 min after start time)
+          const endTime = calculateEndTime(timeValue, 30);
+          summaryTimeValue.textContent = `${timeValue} - ${endTime} (Eastern Time)`;
+          
+          // Show the summary with animation
+          const summary = document.querySelector('.scheduling-summary');
+          summary.classList.remove('fade-in');
+          void summary.offsetWidth; // Trigger reflow to restart animation
+          summary.classList.add('fade-in');
+        });
+      });
+      
+      // Calendar day selection
+      const calendarDays = document.querySelectorAll('.calendar-day:not(.different-month)');
+      
+      calendarDays.forEach(day => {
+        day.addEventListener('click', function() {
+          if (!this.classList.contains('has-availability')) return;
+          
+          calendarDays.forEach(d => d.classList.remove('selected'));
+          this.classList.add('selected');
+          
+          // Update the displayed date in the summary
+          const summaryDateValue = document.querySelector('.summary-detail:nth-child(1) .summary-value');
+          const month = 'March'; // This would be dynamic in a real app
+          const year = '2025'; // This would be dynamic in a real app
+          summaryDateValue.textContent = `${getDayOfWeek(parseInt(this.textContent))}, ${month} ${this.textContent}, ${year}`;
+          
+          // This would trigger an API call to get available time slots
+          simulateLoadingTimeSlots();
+        });
+      });
+      
+      // Helper Functions
+      function calculateEndTime(startTime, durationMinutes) {
+        // Parse the start time
+        const isPM = startTime.includes('PM');
+        let [hours, minutes] = startTime.replace(' AM', '').replace(' PM', '').split(':').map(Number);
+        
+        // Convert to 24-hour format if PM
+        if (isPM && hours < 12) hours += 12;
+        if (!isPM && hours === 12) hours = 0;
+        
+        // Add duration
+        minutes += durationMinutes;
+        if (minutes >= 60) {
+          hours += Math.floor(minutes / 60);
+          minutes %= 60;
+        }
+        
+        // Convert back to 12-hour format
+        const period = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12 || 12;
+        
+        return `${hours}:${minutes.toString().padStart(2, '0')} ${period}`;
+      }
+      
+      function getDayOfWeek(day) {
+        // This is a simplified function. In a real app, you would calculate the actual day of the week
+        const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        // For March 2025, the 1st is a Saturday
+        const firstDayOfMonth = 6; // Saturday is index 6
+        const dayOfWeek = (firstDayOfMonth + day - 1) % 7;
+        return daysOfWeek[dayOfWeek];
+      }
+      
+      function simulateLoadingTimeSlots() {
+        // Show loading state
+        const timeSlots = document.querySelector('.time-slots-grid');
+        timeSlots.innerHTML = '<div class="loading-indicator">Loading available times...</div>';
+        
+        // Simulate API delay
+        setTimeout(() => {
+          // Restore original content (in a real app, this would be updated with new data)
+          timeSlots.innerHTML = `
+            <div class="time-slot unavailable">
+              <div class="time-slot-time">9:00 AM</div>
+              <div class="time-slot-available">Unavailable</div>
+            </div>
+            <div class="time-slot">
+              <div class="time-slot-time">9:30 AM</div>
+              <div class="time-slot-available">Available</div>
+            </div>
+            <div class="time-slot">
+              <div class="time-slot-time">10:00 AM</div>
+              <div class="time-slot-available">Available</div>
+            </div>
+            <div class="time-slot selected">
+              <div class="time-slot-time">10:30 AM</div>
+              <div class="time-slot-available">Selected</div>
+            </div>
+            <div class="time-slot">
+              <div class="time-slot-time">11:00 AM</div>
+              <div class="time-slot-available">Available</div>
+            </div>
+            <div class="time-slot">
+              <div class="time-slot-time">11:30 AM</div>
+              <div class="time-slot-available">Available</div>
+            </div>
+            <div class="time-slot unavailable">
+              <div class="time-slot-time">12:00 PM</div>
+              <div class="time-slot-available">Unavailable</div>
+            </div>
+            <div class="time-slot unavailable">
+              <div class="time-slot-time">12:30 PM</div>
+              <div class="time-slot-available">Unavailable</div>
+            </div>
+            <div class="time-slot">
+              <div class="time-slot-time">1:00 PM</div>
+              <div class="time-slot-available">Available</div>
+            </div>
+            <div class="time-slot">
+              <div class="time-slot-time">1:30 PM</div>
+              <div class="time-slot-available">Available</div>
+            </div>
+            <div class="time-slot">
+              <div class="time-slot-time">2:00 PM</div>
+              <div class="time-slot-available">Available</div>
+            </div>
+            <div class="time-slot">
+              <div class="time-slot-time">2:30 PM</div>
+              <div class="time-slot-available">Available</div>
+            </div>
+            <div class="time-slot">
+              <div class="time-slot-time">3:00 PM</div>
+              <div class="time-slot-available">Available</div>
+            </div>
+            <div class="time-slot">
+              <div class="time-slot-time">3:30 PM</div>
+              <div class="time-slot-available">Available</div>
+            </div>
+          `;
+          
+          // Re-attach event listeners
+          attachTimeSlotListeners();
+        }, 800);
+      }
+      
+      function attachTimeSlotListeners() {
+        const timeSlotElements = document.querySelectorAll('.time-slot:not(.unavailable)');
+        
+        timeSlotElements.forEach(slot => {
+          slot.addEventListener('click', function() {
+            timeSlotElements.forEach(s => s.classList.remove('selected'));
+            this.classList.add('selected');
+            
+            // Update summary time
+            const timeValue = this.querySelector('.time-slot-time').textContent;
+            const summaryTimeValue = document.querySelector('.summary-detail:nth-child(2) .summary-value');
+            const endTime = calculateEndTime(timeValue, 30);
+            summaryTimeValue.textContent = `${timeValue} - ${endTime} (Eastern Time)`;
+          });
+        });
+      }
+    });
+  </script>
+</body>
+</html>
