@@ -1,0 +1,739 @@
+// File: src/pages/ResponsiveMeetingPage.js
+import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { getMeeting, subscribeToMeeting } from '../services/meetingService';
+import AgendaEditor from '../components/AgendaEditor';
+import CollaborationPanel from '../components/CollaborationPanel';
+import MeetingSummary from '../components/MeetingSummary';
+import MobileToolbar from '../components/MobileToolbar';
+import AIAgendaGenerator from '../components/AIAgendaGenerator';
+import ConsensusTracker from '../components/ConsensusTracker';
+import '../styles/ResponsiveMeetingPage.css';
+
+const ResponsiveMeetingPage = () => {
+  const { meetingId } = useParams();
+  const [meeting, setMeeting] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [participantEmail, setParticipantEmail] = useState('');
+  const [isIdentified, setIsIdentified] = useState(false);
+  const [currentView, setCurrentView] = useState('agenda');
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  // Check window size for responsive layouts
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Load meeting data
+  useEffect(() => {
+    const fetchMeeting = async () => {
+      try {
+        setLoading(true);
+        const data = await getMeeting(meetingId);
+        setMeeting(data);
+      } catch (err) {
+        setError('Failed to load meeting data');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Check if user has already identified themselves
+    const storedEmail = localStorage.getItem(`meeting_${meetingId}_email`);
+    if (storedEmail) {
+      setParticipantEmail(storedEmail);
+      setIsIdentified(true);
+    }
+
+    fetchMeeting();
+
+    // Subscribe to real-time updates
+    const unsubscribe = subscribeToMeeting(meetingId, (updatedMeeting) => {
+      setMeeting(updatedMeeting);
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [meetingId]);
+
+  // Handle identify submission
+  const handleIdentify = () => {
+    if (!participantEmail || !participantEmail.includes('@')) {
+      alert('Please enter a valid email address');
+      return;
+    }
+
+    localStorage.setItem(`meeting_${meetingId}_email`, participantEmail);
+    setIsIdentified(true);
+  };
+
+  // Handle view change (for mobile)
+  const handleViewChange = (view) => {
+    setCurrentView(view);
+  };
+
+  // Handle AI generated agenda
+  const handleAIAgenda = (result) => {
+    console.log('AI generated agenda:', result);
+    // In a real implementation, this would update the meeting state
+  };
+
+  if (loading) {
+    return <div className="loading-screen">Loading meeting data...</div>;
+  }
+
+  if (error) {
+    return <div className="error-screen">{error}</div>;
+  }
+
+  if (!meeting) {
+    return <div className="error-screen">Meeting not found</div>;
+  }
+
+  // Identity verification screen
+  if (!isIdentified) {
+    return (
+      <div className="identify-screen">
+        <div className="identify-container">
+          <h2>Join the meeting planning</h2>
+          <p>Please enter your email to collaborate on the agenda:</p>
+          <div className="identify-form">
+            <input
+              type="email"
+              value={participantEmail}
+              onChange={(e) => setParticipantEmail(e.target.value)}
+              placeholder="Your email address"
+            />
+            <button onClick={handleIdentify}>Join Meeting</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Main meeting view
+  return (
+    <div className="meeting-page-container">
+      <div className="meeting-header">
+        <h1>{meeting.title}</h1>
+        <div className="meeting-details">
+          <div className="date-time">
+            {new Date(meeting.date).toLocaleDateString()} at {meeting.time}
+          </div>
+          {meeting.description && (
+            <div className="description">{meeting.description}</div>
+          )}
+        </div>
+      </div>
+
+      <div className="meeting-content">
+        {/* Desktop Layout */}
+        {!isMobile && (
+          <>
+            <div className="main-panel">
+              <AgendaEditor
+                meetingId={meetingId}
+                agenda={meeting.agenda || []}
+                participants={meeting.participants || []}
+                currentUser={participantEmail}
+              />
+              
+              <div className="summary-section">
+                <MeetingSummary
+                  meetingId={meetingId}
+                  agenda={meeting.agenda || []}
+                />
+              </div>
+            </div>
+            
+            <div className="side-panel">
+              <CollaborationPanel
+                participants={meeting.participants || []}
+                meetingId={meetingId}
+              />
+              
+              <div className="ai-section">
+                <AIAgendaGenerator
+                  meetingId={meetingId}
+                  onComplete={handleAIAgenda}
+                />
+                
+                <ConsensusTracker
+                  agendaItems={meeting.agenda || []}
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Mobile Layout */}
+        {isMobile && (
+          <div className="mobile-view">
+            {currentView === 'agenda' && (
+              <AgendaEditor
+                meetingId={meetingId}
+                agenda={meeting.agenda || []}
+                participants={meeting.participants || []}
+                currentUser={participantEmail}
+              />
+            )}
+            
+            {currentView === 'participants' && (
+              <CollaborationPanel
+                participants={meeting.participants || []}
+                meetingId={meetingId}
+              />
+            )}
+            
+            {currentView === 'ai' && (
+              <div className="mobile-ai-view">
+                <AIAgendaGenerator
+                  meetingId={meetingId}
+                  onComplete={handleAIAgenda}
+                />
+                
+                <ConsensusTracker
+                  agendaItems={meeting.agenda || []}
+                />
+              </div>
+            )}
+            
+            {currentView === 'summary' && (
+              <MeetingSummary
+                meetingId={meetingId}
+                agenda={meeting.agenda || []}
+              />
+            )}
+            
+            <MobileToolbar onViewChange={handleViewChange} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ResponsiveMeetingPage;
+
+// File: src/styles/ResponsiveMeetingPage.css
+.meeting-page-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.meeting-header {
+  margin-bottom: 30px;
+}
+
+.meeting-header h1 {
+  margin: 0 0 10px 0;
+  color: #3f51b5;
+  font-size: 24px;
+}
+
+.meeting-details {
+  color: #666;
+  font-size: 14px;
+}
+
+.date-time {
+  margin-bottom: 5px;
+}
+
+.description {
+  font-style: italic;
+}
+
+.meeting-content {
+  display: flex;
+  gap: 20px;
+}
+
+.main-panel {
+  flex: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.side-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.summary-section {
+  margin-top: 30px;
+}
+
+.ai-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.identify-screen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background-color: #f5f7fa;
+}
+
+.identify-container {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+  padding: 30px;
+  width: 100%;
+  max-width: 500px;
+  text-align: center;
+}
+
+.identify-container h2 {
+  color: #3f51b5;
+  margin-bottom: 15px;
+}
+
+.identify-container p {
+  color: #666;
+  margin-bottom: 25px;
+}
+
+.identify-form {
+  display: flex;
+  gap: 10px;
+}
+
+.identify-form input {
+  flex: 1;
+  padding: 10px 15px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.identify-form button {
+  background-color: #3f51b5;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 10px 20px;
+}
+
+.loading-screen, .error-screen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background-color: #f5f7fa;
+  font-size: 16px;
+  color: #666;
+}
+
+.error-screen {
+  color: #f44336;
+}
+
+/* Mobile view styles */
+.mobile-view {
+  width: 100%;
+}
+
+.mobile-ai-view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .meeting-page-container {
+    padding: 15px;
+  }
+  
+  .meeting-content {
+    flex-direction: column;
+  }
+  
+  .meeting-header h1 {
+    font-size: 20px;
+  }
+}
+
+// File: src/components/EmbeddableAgenda.js
+import React from 'react';
+
+const EmbeddableAgenda = ({ meeting, compact = false }) => {
+  if (!meeting || !meeting.agenda || meeting.agenda.length === 0) {
+    return (
+      <div className="agentda-embed">
+        <div className="agentda-embed-header">
+          <img 
+            src="/logo-small.png" 
+            alt="Agentda" 
+            className="agentda-embed-logo" 
+          />
+          <div className="agentda-embed-title">{meeting?.title || 'Meeting Agenda'}</div>
+        </div>
+        <div className="agentda-embed-empty">
+          No agenda items available yet.
+        </div>
+        <div className="agentda-embed-footer">
+          Created with <a 
+            href={`https://agentda.app`} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="agentda-embed-link"
+          >
+            Agentda
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // Get emoji for category
+  const getCategoryEmoji = (category) => {
+    switch (category) {
+      case 'Discussion': return '💬';
+      case 'Decision': return '🔍';
+      case 'Action': return '✅';
+      default: return '📝';
+    }
+  };
+
+  // Format date
+  const formatDate = (dateString) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString();
+    } catch (e) {
+      return dateString;
+    }
+  };
+
+  // If compact is true, only show minimal agenda
+  const agendaItems = compact 
+    ? meeting.agenda.slice(0, 3) 
+    : meeting.agenda;
+
+  return (
+    <div className="agentda-embed">
+      <div className="agentda-embed-header">
+        <img 
+          src="/logo-small.png" 
+          alt="Agentda" 
+          className="agentda-embed-logo" 
+        />
+        <div className="agentda-embed-title">{meeting.title}</div>
+      </div>
+      
+      <div className="agentda-embed-meta">
+        <div>{formatDate(meeting.date)} at {meeting.time}</div>
+        <div>{meeting.participants?.length || 0} participants</div>
+      </div>
+      
+      <div className="agentda-embed-agenda">
+        {agendaItems.map((item, index) => (
+          <div key={index} className="agentda-embed-item">
+            <div className="agentda-embed-category">
+              {getCategoryEmoji(item.category)} {item.category || 'Discussion'}
+            </div>
+            <div className="agentda-embed-text">
+              {item.text}
+            </div>
+            {item.timeAllocation && (
+              <div className="agentda-embed-meta">
+                <div>Time: {item.timeAllocation} minutes</div>
+                <div>Added by: {item.createdBy?.split('@')[0] || 'AI Assistant'}</div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      
+      {compact && meeting.agenda.length > 3 && (
+        <div className="agentda-embed-more">
+          +{meeting.agenda.length - 3} more items
+        </div>
+      )}
+      
+      <div className="agentda-embed-footer">
+        <a 
+          href={`https://agentda.app/meeting/${meeting.id}`} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="agentda-embed-link"
+        >
+          View full agenda
+        </a> | Created with <a 
+          href="https://agentda.app" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="agentda-embed-link"
+        >
+          Agentda
+        </a>
+      </div>
+    </div>
+  );
+};
+
+export default EmbeddableAgenda;
+
+// File: src/utils/embed.js
+/**
+ * JavaScript for embedding Agentda agendas in external websites
+ * This would be loaded via a script tag:
+ * <script src="https://agentda.app/embed.js"></script>
+ */
+
+(function() {
+  // Find all agenda embed elements
+  const embedElements = document.querySelectorAll('.agentda-embed');
+  
+  // Process each element
+  embedElements.forEach(element => {
+    const meetingId = element.getAttribute('data-meeting-id');
+    const compact = element.getAttribute('data-compact') === 'true';
+    
+    if (!meetingId) {
+      element.innerHTML = '<div class="agentda-error">Missing meeting ID</div>';
+      return;
+    }
+    
+    // Fetch meeting data from API
+    fetch(`https://agentda.app/api/meetings/${meetingId}/embed`)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Failed to load meeting data');
+        }
+        return response.json();
+      })
+      .then(meeting => {
+        renderAgenda(element, meeting, compact);
+      })
+      .catch(error => {
+        element.innerHTML = `<div class="agentda-error">Error: ${error.message}</div>`;
+      });
+  });
+  
+  // Render agenda in element
+  function renderAgenda(element, meeting, compact) {
+    if (!meeting || !meeting.agenda || meeting.agenda.length === 0) {
+      element.innerHTML = `
+        <div class="agentda-embed-header">
+          <img src="https://agentda.app/logo-small.png" alt="Agentda" class="agentda-embed-logo">
+          <div class="agentda-embed-title">${meeting?.title || 'Meeting Agenda'}</div>
+        </div>
+        <div class="agentda-embed-empty">
+          No agenda items available yet.
+        </div>
+        <div class="agentda-embed-footer">
+          Created with <a href="https://agentda.app" target="_blank" rel="noopener noreferrer" class="agentda-embed-link">Agentda</a>
+        </div>
+      `;
+      return;
+    }
+    
+    // Get emoji for category
+    function getCategoryEmoji(category) {
+      switch (category) {
+        case 'Discussion': return '💬';
+        case 'Decision': return '🔍';
+        case 'Action': return '✅';
+        default: return '📝';
+      }
+    }
+    
+    // Format date
+    function formatDate(dateString) {
+      try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString();
+      } catch (e) {
+        return dateString;
+      }
+    }
+    
+    // If compact is true, only show minimal agenda
+    const agendaItems = compact 
+      ? meeting.agenda.slice(0, 3) 
+      : meeting.agenda;
+    
+    // Build HTML for agenda items
+    let itemsHtml = '';
+    agendaItems.forEach(item => {
+      itemsHtml += `
+        <div class="agentda-embed-item">
+          <div class="agentda-embed-category">
+            ${getCategoryEmoji(item.category)} ${item.category || 'Discussion'}
+          </div>
+          <div class="agentda-embed-text">
+            ${item.text}
+          </div>
+          ${item.timeAllocation ? `
+            <div class="agentda-embed-meta">
+              <div>Time: ${item.timeAllocation} minutes</div>
+              <div>Added by: ${item.createdBy?.split('@')[0] || 'AI Assistant'}</div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    });
+    
+    // Build full HTML
+    const html = `
+      <div class="agentda-embed-header">
+        <img src="https://agentda.app/logo-small.png" alt="Agentda" class="agentda-embed-logo">
+        <div class="agentda-embed-title">${meeting.title}</div>
+      </div>
+      
+      <div class="agentda-embed-meta">
+        <div>${formatDate(meeting.date)} at ${meeting.time}</div>
+        <div>${meeting.participants?.length || 0} participants</div>
+      </div>
+      
+      <div class="agentda-embed-agenda">
+        ${itemsHtml}
+      </div>
+      
+      ${compact && meeting.agenda.length > 3 ? `
+        <div class="agentda-embed-more">
+          +${meeting.agenda.length - 3} more items
+        </div>
+      ` : ''}
+      
+      <div class="agentda-embed-footer">
+        <a href="https://agentda.app/meeting/${meeting.id}" target="_blank" rel="noopener noreferrer" class="agentda-embed-link">
+          View full agenda
+        </a> | Created with <a href="https://agentda.app" target="_blank" rel="noopener noreferrer" class="agentda-embed-link">
+          Agentda
+        </a>
+      </div>
+    `;
+    
+    element.innerHTML = html;
+  }
+  
+  // Add CSS styles
+  const style = document.createElement('style');
+  style.textContent = `
+    .agentda-embed {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+      color: #333;
+      font-size: 14px;
+      line-height: 1.5;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    
+    .agentda-embed-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    
+    .agentda-embed-logo {
+      height: 24px;
+      margin-right: 10px;
+    }
+    
+    .agentda-embed-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #3f51b5;
+    }
+    
+    .agentda-embed-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 15px;
+    }
+    
+    .agentda-embed-agenda {
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    
+    .agentda-embed-item {
+      padding: 12px 15px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .agentda-embed-item:last-child {
+      border-bottom: none;
+    }
+    
+    .agentda-embed-category {
+      font-size: 12px;
+      font-weight: 600;
+      color: #5c6bc0;
+      margin-bottom: 5px;
+    }
+    
+    .agentda-embed-text {
+      margin-bottom: 8px;
+    }
+    
+    .agentda-embed-more {
+      text-align: center;
+      padding: 10px;
+      font-size: 12px;
+      color: #666;
+      background-color: #f5f5f5;
+    }
+    
+    .agentda-embed-empty {
+      text-align: center;
+      padding: 30px;
+      color: #999;
+      font-style: italic;
+      border: 1px dashed #e0e0e0;
+      border-radius: 6px;
+      margin-bottom: 15px;
+    }
+    
+    .agentda-embed-footer {
+      margin-top: 15px;
+      text-align: center;
+      font-size: 12px;
+      color: #757575;
+    }
+    
+    .agentda-embed-link {
+      color: #3f51b5;
+      text-decoration: none;
+    }
+    
+    .agentda-embed-link:hover {
+      text-decoration: underline;
+    }
+    
+    .agentda-error {
+      color: #f44336;
+      text-align: center;
+      padding: 15px;
+      border: 1px solid #ffcdd2;
+      border-radius: 6px;
+    }
+  `;
+  
+  document.head.appendChild(style);
+})();
