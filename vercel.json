@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "cd agentda && npm install && npm run build",
   "outputDirectory": "agentda/.next",
-  "installCommand": "npm install"
+  "installCommand": "cd agentda && npm install"
 } 
