@@ -1,0 +1,40 @@
+.button {
+  display: inline-block;
+  padding: 10px 20px;
+  font-size: 16px;
+  font-weight: 500;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.primary {
+  background-color: var(--accent);
+  color: white;
+}
+
+.primary:hover {
+  background-color: rgba(0, 122, 255, 0.9);
+}
+
+.secondary {
+  background-color: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
+.secondary:hover {
+  background-color: rgba(0, 122, 255, 0.1);
+}
+
+.large {
+  padding: 12px 24px;
+  font-size: 18px;
+}
+
+.small {
+  padding: 6px 12px;
+  font-size: 14px;
+} 

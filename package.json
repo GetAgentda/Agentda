@@ -1,0 +1,17 @@
+{
+  "name": "agentda-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "cd agentda && npm run dev",
+    "build": "cd agentda && npm run build",
+    "start": "cd agentda && npm run start"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.3"
+  },
+  "dependencies": {
+    "firebase": "^11.4.0"
+  }
+}

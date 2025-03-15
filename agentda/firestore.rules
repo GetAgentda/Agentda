@@ -1,0 +1,100 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin(orgId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isMember(orgId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+    }
+    
+    function isParticipant(meetingId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/meetings/$(meetingId)) &&
+        request.auth.uid in get(/databases/$(database)/documents/meetings/$(meetingId)).data.participants;
+    }
+
+    // Organization rules
+    match /organizations/{orgId} {
+      allow read: if isMember(orgId);
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin(orgId);
+      
+      // Organization members
+      match /members/{userId} {
+        allow read: if isMember(orgId);
+        allow create: if isAdmin(orgId);
+        allow update: if isAdmin(orgId);
+        allow delete: if isAdmin(orgId) && userId != request.auth.uid;
+      }
+    }
+
+    // Meeting rules
+    match /meetings/{meetingId} {
+      allow read: if isParticipant(meetingId);
+      allow create: if isAuthenticated() && 
+        isMember(resource.data.organizationId);
+      allow update: if isParticipant(meetingId) && 
+        (isAdmin(resource.data.organizationId) || request.auth.uid == resource.data.createdBy);
+      allow delete: if isAdmin(resource.data.organizationId);
+      
+      // Meeting subcollections
+      match /messages/{messageId} {
+        allow read: if isParticipant(meetingId);
+        allow create: if isParticipant(meetingId);
+        allow update, delete: if isParticipant(meetingId) && 
+          request.auth.uid == resource.data.sender;
+      }
+      
+      match /attachments/{attachmentId} {
+        allow read: if isParticipant(meetingId);
+        allow create: if isParticipant(meetingId);
+        allow delete: if isParticipant(meetingId) && 
+          request.auth.uid == resource.data.uploadedBy;
+      }
+      
+      match /actionItems/{itemId} {
+        allow read: if isParticipant(meetingId);
+        allow create: if isParticipant(meetingId);
+        allow update: if isParticipant(meetingId);
+        allow delete: if isParticipant(meetingId) && 
+          (isAdmin(resource.data.organizationId) || request.auth.uid == resource.data.createdBy);
+      }
+      
+      match /decisions/{decisionId} {
+        allow read: if isParticipant(meetingId);
+        allow create: if isParticipant(meetingId);
+        allow update: if isParticipant(meetingId);
+        allow delete: if isParticipant(meetingId) && 
+          (isAdmin(resource.data.organizationId) || request.auth.uid == resource.data.madeBy);
+      }
+      
+      match /summaries/{summaryId} {
+        allow read: if isParticipant(meetingId);
+        allow create: if isParticipant(meetingId);
+        allow update: if isParticipant(meetingId);
+        allow delete: if isParticipant(meetingId) && 
+          (isAdmin(resource.data.organizationId) || request.auth.uid == resource.data.createdBy);
+      }
+    }
+
+    // User rules
+    match /users/{userId} {
+      allow read: if isAuthenticated() && 
+        (request.auth.uid == userId || isMember(resource.data.organizationId));
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+  }
+} 

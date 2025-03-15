@@ -1,0 +1,58 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin(orgId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isMember(orgId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+    }
+    
+    function isParticipant(meetingId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/meetings/$(meetingId)) &&
+        request.auth.uid in get(/databases/$(database)/documents/meetings/$(meetingId)).data.participants;
+    }
+
+    // Meeting attachments
+    match /meetings/{meetingId}/attachments/{fileName} {
+      allow read: if isParticipant(meetingId);
+      allow create: if isParticipant(meetingId) && 
+        request.resource.size < 10 * 1024 * 1024 && // 10MB max
+        request.resource.contentType.matches('application/pdf|application/vnd.openxmlformats-officedocument.spreadsheetml.sheet|application/vnd.openxmlformats-officedocument.wordprocessingml.document|image/.*');
+      allow delete: if isParticipant(meetingId) && 
+        request.auth.uid == resource.metadata.uploadedBy;
+    }
+
+    // User avatars
+    match /users/{userId}/avatar/{fileName} {
+      allow read: if isAuthenticated() && 
+        (request.auth.uid == userId || isMember(resource.metadata.organizationId));
+      allow create, update: if isAuthenticated() && 
+        request.auth.uid == userId &&
+        request.resource.size < 5 * 1024 * 1024 && // 5MB max
+        request.resource.contentType.matches('image/.*');
+      allow delete: if isAuthenticated() && 
+        request.auth.uid == userId;
+    }
+
+    // Organization assets
+    match /organizations/{orgId}/assets/{fileName} {
+      allow read: if isMember(orgId);
+      allow create, update: if isAdmin(orgId) &&
+        request.resource.size < 20 * 1024 * 1024 && // 20MB max
+        request.resource.contentType.matches('image/.*|application/pdf');
+      allow delete: if isAdmin(orgId);
+    }
+  }
+} 
